@@ -10,11 +10,13 @@
 
 
 #include "stm32f4xx.h"
-#include "driver/spi.h"
+#include "fat_fs/ff.h"
+
+#include "lib_uart.h"
 
 int main(void)
 {
-	SPI_Config();
+	UART_lib_config(e_UART_2, DISABLE, 0, 0);
 
 	while(1)
 	{

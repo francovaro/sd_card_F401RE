@@ -115,6 +115,11 @@ void SPI_Config(void)
 
 }
 
+/**
+ *
+ * @param rx_buffer
+ * @param n_byte
+ */
 void spi_multiple_read(uint8_t* rx_buffer, uint16_t n_byte)
 {
 	uint8_t *p_rx_buffer = rx_buffer;
@@ -126,6 +131,11 @@ void spi_multiple_read(uint8_t* rx_buffer, uint16_t n_byte)
 	}
 }
 
+/**
+ *
+ * @param tx_buffer
+ * @param n_byte
+ */
 void spi_write(uint8_t* tx_buffer, uint16_t n_byte)
 {
 	uint8_t *p_tx_buffer = tx_buffer;

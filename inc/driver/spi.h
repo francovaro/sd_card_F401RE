@@ -75,7 +75,6 @@
 
 extern void SPI_Config(void);
 extern void spi_multiple_read(uint8_t* tx_buffer, uint16_t n_byte);
-extern void spi_single_read(uint8_t* tx_buffer, uint16_t n_byte);
 extern void spi_write(uint8_t* tx_buffer, uint16_t n_byte);
 
 #endif /* SPI_H_ */
