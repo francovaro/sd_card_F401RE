@@ -11,7 +11,6 @@
 #include "stm32f4xx_spi.h"
 #include "stm32f4xx.h"
 
-
 /**
  *
  */
@@ -22,8 +21,7 @@ void SPI_Config(void)
 
   /* Peripheral Clock Enable -------------------------------------------------*/
   /* Enable GPIO clocks */
-  RCC_AHB1PeriphClockCmd(SPIx_SCK_GPIO_CLK | SPIx_MOSI_GPIO_CLK | SPIx_CS_GPIO_CLK
-		  	  	  	  	  	  | LCD_A0_GPIO_CLK | LCD_RESET_GPIO_CLK, ENABLE);
+  RCC_AHB1PeriphClockCmd(SPIx_SCK_GPIO_CLK | SPIx_MOSI_GPIO_CLK | SPIx_CS_GPIO_CLK, ENABLE);
 
   /* Enable the SPI clock */
   SPIx_CLK_INIT(SPIx_CLK, ENABLE);
@@ -34,7 +32,6 @@ void SPI_Config(void)
   GPIO_DeInit(SPIx_SCK_GPIO_PORT);
   GPIO_DeInit(SPIx_MOSI_GPIO_PORT);
   GPIO_DeInit(SPIx_CS_GPIO_PORT);
-  GPIO_DeInit(LCD_A0_GPIO_PORT);
 
   /* Connect SPI pins to AF5 */
   GPIO_PinAFConfig(SPIx_SCK_GPIO_PORT, SPIx_SCK_SOURCE, SPIx_SCK_AF);
@@ -62,16 +59,7 @@ void SPI_Config(void)
   GPIO_InitStructure.GPIO_Pin =  SPIx_CS_PIN;
   GPIO_Init(SPIx_CS_GPIO_PORT, &GPIO_InitStructure);
 
-  /* command/data pin*/
-  GPIO_InitStructure.GPIO_Pin =  LCD_A0_PIN;
-  GPIO_Init(LCD_A0_GPIO_PORT, &GPIO_InitStructure);
-
-  /* reset pin */
-  GPIO_InitStructure.GPIO_Pin =  LCD_RESET_PIN;
-  GPIO_Init(LCD_RESET_GPIO_PORT, &GPIO_InitStructure);
-
   GPIO_SetBits(SPIx_CS_GPIO_PORT, SPIx_CS_PIN);		/* SPI closed */
-  GPIO_SetBits(LCD_RESET_GPIO_PORT, LCD_RESET_PIN);	/* reset high - LCD enabled */
 
   /* SPI configuration -------------------------------------------------------*/
   SPI_I2S_DeInit(SPIx);
@@ -113,6 +101,7 @@ void SPI_Config(void)
   NVIC_Init(&NVIC_InitStructure);
 #endif
 
+  CS_H();
 }
 
 /**
@@ -145,6 +134,28 @@ void spi_write(uint8_t* tx_buffer, uint16_t n_byte)
 		SPIx->DR = *p_tx_buffer;
 		p_tx_buffer++;
 	}
+}
+
+/**
+ *
+ */
+inline void spi_single_dummy_write(void)
+{
+	SPIx->DR = 0xFF;
+}
+
+/**
+ *
+ * @param tx_byte
+ * @return
+ */
+uint8_t spi_exchange(uint8_t tx_byte)
+{
+	SPIx->DR = tx_byte;
+
+	while ((SPIx->SR & (SPI_I2S_FLAG_BSY| SPI_I2S_FLAG_TXE | SPI_I2S_FLAG_RXNE)) != (SPI_I2S_FLAG_TXE | SPI_I2S_FLAG_RXNE)) ;
+
+	return (uint8_t)SPIx->DR;
 }
 
 /**

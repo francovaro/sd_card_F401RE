@@ -14,9 +14,14 @@
 
 #include "lib_uart.h"
 
+#include "delay.h"
+
 int main(void)
 {
 	UART_lib_config(e_UART_2, DISABLE, 0, 0);
+	delay_init();
+
+	sd_spi_init();
 
 	while(1)
 	{

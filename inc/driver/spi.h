@@ -46,35 +46,21 @@
 #define SPIx_CS_GPIO_PORT              GPIOC
 #define SPIx_CS_GPIO_CLK               RCC_AHB1Periph_GPIOC
 
-/* A0 - GPIOC 00*/
-#define LCD_A0_PIN                     GPIO_Pin_0
-#define LCD_A0_GPIO_PORT               GPIOC
-#define LCD_A0_GPIO_CLK                RCC_AHB1Periph_GPIOC
-
-/* RESET - GPIOC 4*/
-#define LCD_RESET_PIN                  GPIO_Pin_4
-#define LCD_RESET_GPIO_PORT            GPIOC
-#define LCD_RESET_GPIO_CLK             RCC_AHB1Periph_GPIOC
-
 // CS pin macros
 #define CS_L() GPIO_ResetBits(SPIx_CS_GPIO_PORT, SPIx_CS_PIN)
 #define CS_H() GPIO_SetBits(SPIx_CS_GPIO_PORT, SPIx_CS_PIN)
-
-// A0 pin macros
-#define A0_L() GPIO_ResetBits(LCD_A0_GPIO_PORT, LCD_A0_PIN)
-#define A0_H() GPIO_SetBits(LCD_A0_GPIO_PORT, LCD_A0_PIN)
-
-// RESET pin macros
-#define RST_L() GPIO_ResetBits(LCD_RESET_GPIO_PORT, LCD_RESET_PIN)
-#define RST_H() GPIO_SetBits(LCD_RESET_GPIO_PORT, LCD_RESET_PIN)
 
 #define BUFFERSIZE                     100	/* */
 
 #define CS_LOW		GPIO_WriteBit(GPIOC, GPIO_Pin_2, 0)
 #define CS_HIGH		GPIO_WriteBit(GPIOC, GPIO_Pin_2, 1)
 
+#define SPI_DUMMY_WRITE			SPIx->DR = 0xFF
+
 extern void SPI_Config(void);
 extern void spi_multiple_read(uint8_t* tx_buffer, uint16_t n_byte);
 extern void spi_write(uint8_t* tx_buffer, uint16_t n_byte);
+extern inline void spi_single_dummy_write(void);
+extern uint8_t spi_exchange(uint8_t tx_byte);
 
 #endif /* SPI_H_ */
