@@ -36,13 +36,14 @@
 #define CMD55	(55)		/* APP_CMD */
 #define CMD58	(58)		/* READ_OCR */
 
-static BYTE sd_card_type;			/* Card type flags */
+static BYTE _sd_card_type;	/* Card type flags */
 
 static BYTE sd_spi_send_cmd(BYTE cmd, DWORD arg);
 static void sd_spi_deselect(void);
 static ErrorStatus sd_spi_select(void);
 
 static bool sd_spi_wait_ready(UINT delay);
+static bool sd_spi_detect_card(void);
 
 void sd_spi_init(void)
 {
@@ -58,8 +59,32 @@ void sd_spi_init(void)
  */
 DSTATUS disk_initialize (BYTE pdrv)
 {
+	BYTE n;
+	BYTE cmd;
+	BYTE ty;
+	BYTE ocr[4];
 	DSTATUS result = 0;
-	sd_card_type = 0;
+	_sd_card_type = 0;
+
+	if (!sd_spi_detect_card())
+	{
+		return STA_NODISK;
+	}
+
+	for (n = 0; n < 10; n++)
+	{
+		spi_single_dummy_write();
+	}
+	ty = 0;
+
+	if (sd_spi_send_cmd(CMD0, 0) == 1u)	/* Put the card SPI/Idle state */
+	{
+		delay_ms(1000);	/* wait 1 sec */
+		if (sd_spi_send_cmd(CMD8, 0x1AA) == 1)	/* SDv2? */
+		{
+
+		}
+	}
 
 	return result;
 }
@@ -232,4 +257,16 @@ static bool sd_spi_wait_ready(UINT delay)
 			&& (!delay_has_expired()));
 
 	return (rx_byte == 0xFF);
+}
+
+/**
+ *
+ * @return
+ */
+bool sd_spi_detect_card(void)
+{
+	/*
+	 * not implemented !
+	 */
+	return true;
 }
