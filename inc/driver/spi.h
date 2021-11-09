@@ -55,12 +55,11 @@
 #define CS_LOW		GPIO_WriteBit(GPIOC, GPIO_Pin_2, 0)
 #define CS_HIGH		GPIO_WriteBit(GPIOC, GPIO_Pin_2, 1)
 
-#define SPI_DUMMY_WRITE			SPIx->DR = 0xFF
+#define SPI_DUMMY_WRITE			SPIx->DR = 0xFF;
 
 extern void SPI_Config(void);
 extern void spi_multiple_read(uint8_t* tx_buffer, uint16_t n_byte);
 extern void spi_write(uint8_t* tx_buffer, uint16_t n_byte);
-extern inline void spi_single_dummy_write(void);
 extern uint8_t spi_exchange(uint8_t tx_byte);
 
 #endif /* SPI_H_ */

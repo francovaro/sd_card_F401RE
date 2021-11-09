@@ -36,7 +36,8 @@
 #define CMD55	(55)		/* APP_CMD */
 #define CMD58	(58)		/* READ_OCR */
 
-static BYTE _sd_card_type;	/* Card type flags */
+static volatile DSTATUS _stat = STA_NOINIT;		/* Physical drive status */
+static BYTE _sd_card_type;						/* Card type flags */
 
 static BYTE sd_spi_send_cmd(BYTE cmd, DWORD arg);
 static void sd_spi_deselect(void);
@@ -63,30 +64,88 @@ DSTATUS disk_initialize (BYTE pdrv)
 	BYTE cmd;
 	BYTE ty;
 	BYTE ocr[4];
-	DSTATUS result = 0;
+
+
 	_sd_card_type = 0;
 
-	if (!sd_spi_detect_card())
+	if (!sd_spi_detect_card())	/* check if card is present */
 	{
-		return STA_NODISK;
+		_stat = STA_NODISK;
 	}
-
-	for (n = 0; n < 10; n++)
+	else
 	{
-		spi_single_dummy_write();
-	}
-	ty = 0;
-
-	if (sd_spi_send_cmd(CMD0, 0) == 1u)	/* Put the card SPI/Idle state */
-	{
-		delay_ms(1000);	/* wait 1 sec */
-		if (sd_spi_send_cmd(CMD8, 0x1AA) == 1)	/* SDv2? */
+		for (n = 0; n < 10; n++)
 		{
+			SPI_DUMMY_WRITE;	/* dummy cycle */
+		}
+		ty = 0;
 
+		if (sd_spi_send_cmd(CMD0, 0) == 1u)	/* Put the card SPI/Idle state */
+		{
+			delay_load_ms(1000);	/* load 1 sec */
+			if (sd_spi_send_cmd(CMD8, 0x1AA) == 1)	/* SDv2? */
+			{
+				for (n = 0; n < 4; n++)
+				{
+					ocr[n] = spi_exchange(0xFF);	/* Get 32 bit return value of R7 resp */
+				}
+
+				if ((ocr[2] == 0x01) && (ocr[3] == 0xAA))	/* Is the card supports vcc of 2.7-3.6V? */
+				{
+					while ((!delay_has_expired())
+							&& sd_spi_send_cmd(ACMD41, 1UL << 30)) ;	/* Wait for end of initialization with ACMD41(HCS) */
+
+					if ( (!delay_has_expired())
+							&& sd_spi_send_cmd(CMD58, 0) == 0)
+					{		/* Check CCS bit in the OCR */
+						for (n = 0; n < 4; n++)
+						{
+							ocr[n] = spi_exchange(0xFF);
+						}
+						ty = (ocr[0] & 0x40) ? CT_SDC2 | CT_BLOCK : CT_SDC2;	/* Card id SDv2 */
+					}
+				}
+			}
+			else
+			{	/* Not SDv2 card */
+				if (sd_spi_send_cmd(ACMD41, 0) <= 1)
+				{	/* SDv1 or MMC? */
+					ty = CT_SDC1;
+					cmd = ACMD41;	/* SDv1 (ACMD41(0)) */
+				}
+				else
+				{
+					ty = CT_MMC3;
+					cmd = CMD1;			/* MMCv3 (CMD1(0)) */
+				}
+				while ((!delay_has_expired())
+						&& sd_spi_send_cmd(cmd, 0)) ;		/* Wait for end of initialization */
+
+				if (delay_has_expired()
+						|| sd_spi_send_cmd(CMD16, 0x200) != 0)	/* Set block length: 512 */
+				{
+					ty = 0;
+				}
+			}
+
+		}
+
+		_sd_card_type = ty;	/* Card type */
+		sd_spi_deselect();
+
+		if (ty)
+		{			/* OK */
+			_stat &= ~STA_NOINIT;	/* Clear STA_NOINIT flag */
+		}
+		else
+		{			/* Failed */
+			_stat = STA_NOINIT;
 		}
 	}
 
-	return result;
+
+
+	return _stat;
 }
 
 /**

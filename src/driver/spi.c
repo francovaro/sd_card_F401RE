@@ -138,14 +138,6 @@ void spi_write(uint8_t* tx_buffer, uint16_t n_byte)
 
 /**
  *
- */
-inline void spi_single_dummy_write(void)
-{
-	SPIx->DR = 0xFF;
-}
-
-/**
- *
  * @param tx_byte
  * @return
  */
