@@ -37,7 +37,7 @@
 #define CMD58	(58)		/* READ_OCR */
 
 static volatile DSTATUS _stat = STA_NOINIT;		/* Physical drive status */
-static BYTE _sd_card_type;						/* Card type flags */
+static BYTE _media_type;						/* Card type flags */
 
 static BYTE sd_spi_send_cmd(BYTE cmd, DWORD arg);
 static void sd_spi_deselect(void);
@@ -45,6 +45,7 @@ static ErrorStatus sd_spi_select(void);
 
 static bool sd_spi_wait_ready(UINT delay);
 static bool sd_spi_detect_card(void);
+static int sd_spi_receive_datablock(BYTE *buff, UINT btr);
 
 void sd_spi_init(void)
 {
@@ -66,7 +67,7 @@ DSTATUS disk_initialize (BYTE pdrv)
 	BYTE ocr[4];
 
 
-	_sd_card_type = 0;
+	_media_type = 0;
 
 	if (!sd_spi_detect_card())	/* check if card is present */
 	{
@@ -130,7 +131,7 @@ DSTATUS disk_initialize (BYTE pdrv)
 
 		}
 
-		_sd_card_type = ty;	/* Card type */
+		_media_type = ty;	/* Card type */
 		sd_spi_deselect();
 
 		if (ty)
@@ -155,22 +156,70 @@ DSTATUS disk_initialize (BYTE pdrv)
  */
 DSTATUS disk_status (BYTE pdrv)
 {
-	DSTATUS result = 0;
+	if (pdrv > 0)
+	{
+		return STA_NOINIT;
+	}
 
-	return result;
+	return _stat;
 }
 
 /**
  *
- * @param pdrv
- * @param buff
- * @param sector
- * @param count
+ * @param pdrv		Physical drive number (0)
+ * @param buff		Pointer to the data buffer to store read data
+ * @param sector	Start sector number (LBA)
+ * @param count		Number of sectors to read (1..128)
  * @return
  */
 DRESULT disk_read (BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
 	DSTATUS result = 0;
+
+	DWORD sect = (DWORD)sector;
+
+	if (pdrv || !count)		/* Check parameter */
+	{
+		return RES_PARERR;
+	}
+
+	if (_stat & STA_NOINIT)	/* Check if drive is ready */
+	{
+		return RES_NOTRDY;
+	}
+
+	if (!(_media_type & CT_BLOCK))
+	{
+		sect *= 512;	/* LBA ot BA conversion (byte addressing cards) */
+	}
+
+	if (count == 1)
+	{	/* Single sector read */
+		if ((sd_spi_send_cmd(CMD17, sect) == 0)	/* READ_SINGLE_BLOCK */
+			&& sd_spi_receive_datablock(buff, 512))
+		{
+			count = 0;
+		}
+	}
+	else
+	{				/* Multiple sector read */
+		if (sd_spi_send_cmd(CMD18, sect) == 0)
+		{	/* READ_MULTIPLE_BLOCK */
+			do
+			{
+				if (!sd_spi_receive_datablock(buff, 512))
+				{
+					break;
+				}
+
+				buff += 512;
+			} while (--count);
+
+			sd_spi_send_cmd(CMD12, 0);				/* STOP_TRANSMISSION */
+		}
+	}
+
+	sd_spi_deselect();
 
 	return result;
 }
@@ -328,4 +377,32 @@ bool sd_spi_detect_card(void)
 	 * not implemented !
 	 */
 	return true;
+}
+
+/**
+ *
+ * @param buff	Data buffer
+ * @param btr	Data block length (byte)
+ * @return		1:OK, 0:Error
+ */
+static int sd_spi_receive_datablock(BYTE *buff, UINT btr)
+{
+	BYTE token;
+
+	delay_load_ms(200);
+	do {							/* Wait for DataStart token in timeout of 200ms */
+		token = spi_exchange(0xFF);
+		/* This loop will take a time. Insert rot_rdq() here for multitask envilonment. */
+	} while ((token == 0xFF) && (!delay_has_expired()));
+
+	if(token != 0xFE)
+	{
+		return 0;		/* Function fails if invalid DataStart token or timeout */
+	}
+
+	spi_multiple_read(buff, btr);		/* Store trailing data to the buffer */
+	spi_exchange(0xFF);
+	spi_exchange(0xFF);					/* Discard CRC */
+
+	return 1;							/* Function succeeded */
 }
