@@ -59,7 +59,7 @@
 
 extern void SPI_Config(void);
 extern void spi_multiple_read(uint8_t* tx_buffer, uint16_t n_byte);
-extern void spi_write(uint8_t* tx_buffer, uint16_t n_byte);
+extern void spi_write(const uint8_t* tx_buffer, uint16_t n_byte);
 extern uint8_t spi_exchange(uint8_t tx_byte);
 
 #endif /* SPI_H_ */

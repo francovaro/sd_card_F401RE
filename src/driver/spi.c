@@ -64,14 +64,14 @@ void SPI_Config(void)
   /* SPI configuration -------------------------------------------------------*/
   SPI_I2S_DeInit(SPIx);
   SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
-  SPI_InitStructure.SPI_Direction = SPI_Direction_1Line_Tx;
-  SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-  SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;		/* from chinese demo... */
-  SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;		/* from chinese demo... */
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft /*| SPI_NSSInternalSoft_Set*/;
+  SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;		/* tx and rx */
+  SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;							/* 1 byte */
+  SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
+  SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft 								/*| SPI_NSSInternalSoft_Set*/;
   SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-  SPI_InitStructure.SPI_CRCPolynomial = 10;
+  //SPI_InitStructure.SPI_CRCPolynomial = 10;
 
   //SPI_NSSInternalSoftwareConfig(SPIx, SPI_NSSInternalSoft_Set);
   SPI_Init(SPIx, &SPI_InitStructure);
@@ -101,9 +101,8 @@ void SPI_Config(void)
   NVIC_Init(&NVIC_InitStructure);
 #endif
 
-  CS_H();
+	  CS_H();	/* deselect  */
 }
-
 /**
  *
  * @param rx_buffer
@@ -115,7 +114,8 @@ void spi_multiple_read(uint8_t* rx_buffer, uint16_t n_byte)
 
 	for (; n_byte > 0; n_byte--)
 	{
-		*p_rx_buffer = SPIx->DR;
+		SPIx->DR = 0xFF;			/* dummy send */
+		*p_rx_buffer = SPIx->DR;	/* receives data */
 		p_rx_buffer++;
 	}
 }
@@ -125,13 +125,17 @@ void spi_multiple_read(uint8_t* rx_buffer, uint16_t n_byte)
  * @param tx_buffer
  * @param n_byte
  */
-void spi_write(uint8_t* tx_buffer, uint16_t n_byte)
+void spi_write(const uint8_t* tx_buffer, uint16_t n_byte)
 {
-	uint8_t *p_tx_buffer = tx_buffer;
+	uint8_t dummy_rx;
+	const uint8_t *p_tx_buffer = tx_buffer;
+
+	(void)dummy_rx;	/* no warning */
 
 	for (; n_byte > 0; n_byte--)
 	{
-		SPIx->DR = *p_tx_buffer;
+		SPIx->DR = *p_tx_buffer;	/* send data*/
+		dummy_rx = SPIx->DR;		/* dummy receive */
 		p_tx_buffer++;
 	}
 }

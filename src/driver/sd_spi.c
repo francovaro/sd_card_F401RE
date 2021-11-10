@@ -45,7 +45,10 @@ static ErrorStatus sd_spi_select(void);
 
 static bool sd_spi_wait_ready(UINT delay);
 static bool sd_spi_detect_card(void);
-static int sd_spi_receive_datablock(BYTE *buff, UINT btr);
+static bool sd_spi_receive_datablock(BYTE *buff, UINT btr);
+#if FF_FS_READONLY == 0
+static bool sd_spi_sends_datablock(const BYTE *buff, BYTE token);
+#endif
 
 void sd_spi_init(void)
 {
@@ -224,20 +227,75 @@ DRESULT disk_read (BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 	return result;
 }
 
+#if FF_FS_READONLY == 0
 /**
  *
- * @param pdrv
- * @param buff
- * @param sector
+ * @param pdrv		Physical drive number (0)
+ * @param buff		Pointer to the data to write
+ * @param sector	Start sector number (LBA)
  * @param count
  * @return
  */
 DRESULT disk_write (BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
-	DSTATUS result = 0;
+	DWORD sect = (DWORD)sector;
 
-	return result;
+	if (pdrv || !count)
+	{
+		return RES_PARERR;		/* Check parameter */
+	}
+
+	if (_stat)
+	{
+		return RES_NOTRDY;	/* Check drive status */
+	}
+
+	if (_stat & STA_PROTECT)
+	{
+		return RES_WRPRT;	/* Check write protect */
+	}
+
+	if (!(_media_type & CT_BLOCK))
+	{
+		sect *= 512;	/* LBA ==> BA conversion (byte addressing cards) */
+	}
+
+	if (count == 1)
+	{	/* Single sector write */
+		if ((sd_spi_send_cmd(CMD24, sect) == 0)	/* WRITE_BLOCK */
+			&& sd_spi_sends_datablock((BYTE*)buff, 0xFE))
+		{
+			count = 0;
+		}
+	}
+	else
+	{				/* Multiple sector write */
+		if (_media_type & CT_SDC)
+		{
+			sd_spi_send_cmd(ACMD23, count);	/* Predefine number of sectors */
+		}
+
+		if (send_cmd(CMD25, sect) == 0)
+		{	/* WRITE_MULTIPLE_BLOCK */
+			do
+			{
+				if (!sd_spi_sends_datablock(buff, 0xFC))
+					break;
+				buff += 512;
+			} while (--count);
+
+			if (!sd_spi_sends_datablock(0, 0xFD))
+			{
+				count = 1;	/* STOP_TRAN token */
+			}
+		}
+	}
+
+	sd_spi_deselect();
+
+	return count ? RES_ERROR : RES_OK;	/* Return result */
 }
+#endif
 
 /**
  *
@@ -248,7 +306,7 @@ DRESULT disk_write (BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
  */
 DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 {
-	DSTATUS result = 0;
+	DSTATUS result = RES_ERROR;	/* */
 
 	return result;
 }
@@ -350,7 +408,7 @@ static ErrorStatus sd_spi_select(void)
 /**
  *
  * @param delay
- * @return
+ * @return 1 Ready, 0 timeout
  */
 static bool sd_spi_wait_ready(UINT delay)
 {
@@ -385,24 +443,62 @@ bool sd_spi_detect_card(void)
  * @param btr	Data block length (byte)
  * @return		1:OK, 0:Error
  */
-static int sd_spi_receive_datablock(BYTE *buff, UINT btr)
+static bool sd_spi_receive_datablock(BYTE *buff, UINT btr)
 {
+	bool received = false;
+
 	BYTE token;
 
-	delay_load_ms(200);
-	do {							/* Wait for DataStart token in timeout of 200ms */
+	delay_load_ms(200);				/* Wait for DataStart token in timeout of 200ms */
+	do
+	{
 		token = spi_exchange(0xFF);
 		/* This loop will take a time. Insert rot_rdq() here for multitask envilonment. */
-	} while ((token == 0xFF) && (!delay_has_expired()));
+	} while ((token == 0xFF)
+			&& (!delay_has_expired()));
 
-	if(token != 0xFE)
+	if(token == 0xFE)
 	{
-		return 0;		/* Function fails if invalid DataStart token or timeout */
+		spi_multiple_read(buff, btr);		/* Store trailing data to the buffer */
+		spi_exchange(0xFF);
+		spi_exchange(0xFF);					/* Discard CRC */
+
+		received = true;
 	}
 
-	spi_multiple_read(buff, btr);		/* Store trailing data to the buffer */
-	spi_exchange(0xFF);
-	spi_exchange(0xFF);					/* Discard CRC */
-
-	return 1;							/* Function succeeded */
+	return received;							/* Function succeeded */
 }
+
+#if FF_FS_READONLY == 0
+/**
+ *
+ * @param buff		Ponter to 512 byte data to be sent
+ * @param token		Token
+ * @return			1:OK, 0:Failed
+ */
+static bool sd_spi_sends_datablock(const BYTE *buff, BYTE token)
+{
+	bool sent = false;
+	BYTE resp;
+
+	if (sd_spi_wait_ready(500))
+	{
+		spi_exchange(token);					/* Send token */
+
+		if (token != 0xFD)
+		{				/* Send data if token is other than StopTran */
+			spi_write(buff, 512u);		/* Data */
+			spi_exchange(0xFF);
+			spi_exchange(0xFF);	/* Dummy CRC */
+
+			resp = spi_exchange(0xFF);				/* Receive data resp */
+			if ((resp & 0x1F) == 0x05)
+			{
+				sent = true;
+			}
+		}
+	}
+
+	return sent;
+}
+#endif
