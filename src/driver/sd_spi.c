@@ -275,7 +275,7 @@ DRESULT disk_write (BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 			sd_spi_send_cmd(ACMD23, count);	/* Predefine number of sectors */
 		}
 
-		if (send_cmd(CMD25, sect) == 0)
+		if (sd_spi_send_cmd(CMD25, sect) == 0)
 		{	/* WRITE_MULTIPLE_BLOCK */
 			do
 			{
@@ -459,7 +459,7 @@ static bool sd_spi_receive_datablock(BYTE *buff, UINT btr)
 
 	if(token == 0xFE)
 	{
-		spi_multiple_read(buff, btr);		/* Store trailing data to the buffer */
+		spi_multiple_write(buff, btr);		/* Store trailing data to the buffer */
 		spi_exchange(0xFF);
 		spi_exchange(0xFF);					/* Discard CRC */
 
@@ -487,7 +487,7 @@ static bool sd_spi_sends_datablock(const BYTE *buff, BYTE token)
 
 		if (token != 0xFD)
 		{				/* Send data if token is other than StopTran */
-			spi_write(buff, 512u);		/* Data */
+			spi_multiple_write(buff, 512u);		/* Data */
 			spi_exchange(0xFF);
 			spi_exchange(0xFF);	/* Dummy CRC */
 

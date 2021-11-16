@@ -41,10 +41,17 @@
 #define SPIx_MOSI_SOURCE               GPIO_PinSource3
 #define SPIx_MOSI_AF                   GPIO_AF_SPI2
 
-/* CHIP SELECT - GPIOC 02*/
-#define SPIx_CS_PIN                    GPIO_Pin_2
-#define SPIx_CS_GPIO_PORT              GPIOC
-#define SPIx_CS_GPIO_CLK               RCC_AHB1Periph_GPIOC
+/* MISO -  GPIOC 02 */
+#define SPIx_MISO_PIN                  GPIO_Pin_2
+#define SPIx_MISO_GPIO_PORT            GPIOC
+#define SPIx_MISO_GPIO_CLK             RCC_AHB1Periph_GPIOC
+#define SPIx_MISO_SOURCE               GPIO_PinSource2
+#define SPIx_MISO_AF                   GPIO_AF_SPI2
+
+/* CHIP SELECT - GPIOB 1*/
+#define SPIx_CS_PIN                    GPIO_Pin_1
+#define SPIx_CS_GPIO_PORT              GPIOB
+#define SPIx_CS_GPIO_CLK               RCC_AHB1Periph_GPIOB
 
 // CS pin macros
 #define CS_L() GPIO_ResetBits(SPIx_CS_GPIO_PORT, SPIx_CS_PIN)
@@ -58,8 +65,9 @@
 #define SPI_DUMMY_WRITE			SPIx->DR = 0xFF;
 
 extern void SPI_Config(void);
-extern void spi_multiple_read(uint8_t* tx_buffer, uint16_t n_byte);
-extern void spi_write(const uint8_t* tx_buffer, uint16_t n_byte);
+extern void spi_read(uint8_t* rx_buffer, uint16_t n_byte);
+extern void spi_multiple_write(const uint8_t* tx_buffer, uint16_t n_byte);
+extern void spi_single_write(uint8_t data);
 extern uint8_t spi_exchange(uint8_t tx_byte);
 
 #endif /* SPI_H_ */

@@ -54,3 +54,4 @@ dkms.conf
 Debug/makefile
 Debug/objects.mk
 *.bin
+/Debug/
